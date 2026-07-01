@@ -91,10 +91,13 @@ var MemberApp = (function () {
     var badge = c.bookingState === 'OPEN' ? '<span class="badge badge-open">Open</span>' :
                 c.bookingState === 'NOT_OPEN' ? '<span class="badge badge-soon">Opens soon</span>' :
                 '<span class="badge badge-closed">Closed</span>';
+    var typeBadge = c.classType === 'Spin'
+      ? '<span class="badge" style="background:#E9F1FB;color:var(--sky-600);">Spin</span>'
+      : '<span class="badge" style="background:#E6F7ED;color:var(--success);">Group</span>';
     return '<div class="card class-card" data-class-id="' + c.classId + '">' +
       '<div class="class-date-badge"><span class="day">' + UI.dayNum(c.date) + '</span><span class="mon">' + UI.monthAbbr(c.date) + '</span></div>' +
       '<div class="class-info">' +
-        '<div class="class-time">' + UI.friendlyTime(c.time) + '</div>' +
+        '<div class="class-time">' + UI.friendlyTime(c.time) + ' ' + typeBadge + '</div>' +
         '<div class="class-meta">' + c.branch + ' · ' + c.availableSeats + ' / ' + c.capacity + ' seats left</div>' +
       '</div>' +
       badge +
@@ -224,7 +227,8 @@ var MemberApp = (function () {
     main.innerHTML =
       '<div class="section-title">Profile</div>' +
       '<div class="card">' +
-        '<div class="card-row"><span>Member ID</span><strong>' + UI.escapeHtml(session.refId) + '</strong></div>' +
+        '<div class="card-row"><span>App Member ID</span><strong>' + UI.escapeHtml(session.refId) + '</strong></div>' +
+        (session.gymId ? '<div class="card-row"><span>Gym ID</span><strong>' + UI.escapeHtml(session.gymId) + '</strong></div>' : '') +
         '<div class="card-row"><span>Name</span><strong>' + UI.escapeHtml(session.fullName) + '</strong></div>' +
         '<div class="card-row"><span>Branch</span><strong>' + UI.escapeHtml(session.branch) + '</strong></div>' +
       '</div>' +

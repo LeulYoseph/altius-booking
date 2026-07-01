@@ -9,16 +9,14 @@
 var SeatMap = (function () {
 
   function render(container, classMeta, seats, readOnly, onBook) {
-    var layoutCols = inferColumnCount(seats);
+    var isSpin = classMeta.classType === 'Spin';
+    var cols   = isSpin ? 12 : (classMeta.cols || inferColumnCount(seats));
+    var stageLabel = isSpin ? 'INSTRUCTOR / FRONT' : 'FRONT OF ROOM / INSTRUCTOR';
+
     var html =
       '<div class="seat-map-wrap">' +
-        '<div class="seat-map-stage">FRONT OF ROOM / INSTRUCTOR</div>' +
-        '<div class="seat-grid" id="seat-grid" style="grid-template-columns: repeat(' + layoutCols + ', 30px);">' +
-          seats.map(function (s) {
-            var cls = 'seat ' + s.state;
-            return '<div class="' + cls + '" data-seat="' + s.seat + '" title="' + s.seat + '">' + s.seat + '</div>';
-          }).join('') +
-        '</div>' +
+        '<div class="seat-map-stage">' + stageLabel + '</div>' +
+        (isSpin ? renderSpinGrid(seats) : renderGroupGrid(seats, cols)) +
         '<div class="seat-legend">' +
           legendItem('var(--sky-50)', 'Available') +
           legendItem('var(--booked)', 'Booked') +
@@ -26,15 +24,13 @@ var SeatMap = (function () {
           legendItem('var(--sky-600)', 'Yours') +
         '</div>' +
       '</div>' +
-      (readOnly ? '' :
-        '<div id="seat-action-area" style="margin-top:14px;"></div>'
-      );
+      (readOnly ? '' : '<div id="seat-action-area" style="margin-top:14px;"></div>');
 
     container.innerHTML = html;
     if (readOnly) return;
 
     var selectedSeat = null;
-    var grid = container.querySelector('#seat-grid');
+    var grid = container.querySelector('.seat-grid, .spin-grid');
     grid.addEventListener('click', function (e) {
       var node = e.target.closest('.seat');
       if (!node) return;
@@ -59,12 +55,42 @@ var SeatMap = (function () {
     renderActionArea(container, classMeta, null, onBook);
   }
 
+  /** Group class: standard rectangular letter+number grid */
+  function renderGroupGrid(seats, cols) {
+    return '<div class="seat-grid" style="grid-template-columns: repeat(' + cols + ', 30px);">' +
+      seats.map(function (s) {
+        return '<div class="seat ' + s.state + '" data-seat="' + s.seat + '" title="' + s.seat + '">' + s.seat + '</div>';
+      }).join('') +
+    '</div>';
+  }
+
+  /**
+   * Spin class: 10 cols x 2 rows = 20 visible cells but bikes are numbered
+   * 1-24. We render two rows of 12 (total 24). Each cell shows just the
+   * number. Styled slightly differently (circular) to feel like bike symbols.
+   */
+  function renderSpinGrid(seats) {
+    // 11 front (bikes 1-11) + 13 back (bikes 12-24)
+    var row1 = seats.slice(0, 11);  // front row
+    var row2 = seats.slice(11, 24); // back row
+    function renderRow(rowSeats) {
+      return rowSeats.map(function (s) {
+        return '<div class="seat spin-seat ' + s.state + '" data-seat="' + s.seat + '" title="Bike ' + s.seat + '">' + s.seat + '</div>';
+      }).join('');
+    }
+    return '<div class="spin-grid">' +
+      '<p class="helper-text" style="text-align:center;margin-bottom:6px;font-size:11px;font-weight:700;letter-spacing:.08em;">FRONT ROW (11 bikes)</p>' +
+      '<div class="spin-row">' + renderRow(row1) + '</div>' +
+      '<p class="helper-text" style="text-align:center;margin:8px 0 6px;font-size:11px;font-weight:700;letter-spacing:.08em;">BACK ROW (13 bikes)</p>' +
+      '<div class="spin-row">' + renderRow(row2) + '</div>' +
+    '</div>';
+  }
+
   function legendItem(color, label) {
     return '<div class="legend-item"><span class="legend-dot" style="background:' + color + '"></span>' + label + '</div>';
   }
 
   function inferColumnCount(seats) {
-    // Seats are generated row-major from the layout; find where the row letter changes to infer column count.
     if (!seats.length) return 8;
     var firstRowLetter = seats[0].seat.charAt(0);
     var count = 0;
@@ -72,19 +98,20 @@ var SeatMap = (function () {
       if (seats[i].seat.charAt(0) !== firstRowLetter) break;
       count++;
     }
-    return Math.min(count || 8, 10);
+    return Math.min(count || 8, 12);
   }
 
   function renderActionArea(container, classMeta, seat, onBook) {
     var area = container.querySelector('#seat-action-area');
     if (!area) return;
+    var label = classMeta.classType === 'Spin' ? 'Bike' : 'Seat';
     if (!seat) {
-      area.innerHTML = '<p class="helper-text" style="text-align:center;">Tap an available seat to select it.</p>';
+      area.innerHTML = '<p class="helper-text" style="text-align:center;">Tap an available ' + label.toLowerCase() + ' to select it.</p>';
       return;
     }
     area.innerHTML =
       '<div class="card">' +
-        '<div class="card-row"><span>Selected seat</span><strong>' + UI.escapeHtml(seat) + '</strong></div>' +
+        '<div class="card-row"><span>Selected ' + label + '</span><strong>' + UI.escapeHtml(seat) + '</strong></div>' +
         '<div class="card-row"><span>Date</span><strong>' + UI.friendlyDate(classMeta.date) + '</strong></div>' +
         '<div class="card-row"><span>Time</span><strong>' + UI.friendlyTime(classMeta.time) + '</strong></div>' +
         '<button class="btn btn-primary" style="margin-top:14px;" id="confirm-booking-btn">Confirm Booking</button>' +

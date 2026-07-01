@@ -86,25 +86,27 @@ var Api = (function () {
 /** Session storage helpers (separate from Api so other modules can use them without circular deps). */
 var Session = (function () {
   function save(session) {
-    localStorage.setItem('altius_token', session.token);
-    localStorage.setItem('altius_role', session.role);
-    localStorage.setItem('altius_refId', session.refId);
-    localStorage.setItem('altius_branch', session.branch || '');
+    localStorage.setItem('altius_token',    session.token);
+    localStorage.setItem('altius_role',     session.role);
+    localStorage.setItem('altius_refId',    session.refId);
+    localStorage.setItem('altius_branch',   session.branch || '');
     localStorage.setItem('altius_fullName', session.fullName || '');
+    localStorage.setItem('altius_gymId',    session.gymId || '');
   }
   function clear() {
-    ['altius_token', 'altius_role', 'altius_refId', 'altius_branch', 'altius_fullName']
+    ['altius_token', 'altius_role', 'altius_refId', 'altius_branch', 'altius_fullName', 'altius_gymId']
       .forEach(function (k) { localStorage.removeItem(k); });
   }
   function get() {
     var token = localStorage.getItem('altius_token');
     if (!token) return null;
     return {
-      token: token,
-      role: localStorage.getItem('altius_role'),
-      refId: localStorage.getItem('altius_refId'),
-      branch: localStorage.getItem('altius_branch'),
-      fullName: localStorage.getItem('altius_fullName')
+      token:    token,
+      role:     localStorage.getItem('altius_role'),
+      refId:    localStorage.getItem('altius_refId'),
+      branch:   localStorage.getItem('altius_branch'),
+      fullName: localStorage.getItem('altius_fullName'),
+      gymId:    localStorage.getItem('altius_gymId') || ''
     };
   }
   return { save: save, clear: clear, get: get };

@@ -115,7 +115,7 @@ var ReceptionApp = (function () {
     var nextStatus = m.status === 'Active' ? 'Inactive' : 'Active';
     return '<div class="card">' +
       '<div class="card-row"><strong>' + UI.escapeHtml(m.fullName) + '</strong><span class="status-pill status-' + m.status + '">' + m.status + '</span></div>' +
-      '<p>' + m.memberId + ' · ' + UI.escapeHtml(m.phone) + ' · ' + m.branch + '</p>' +
+      '<p>' + m.memberId + (m.gymId ? ' · Gym ID: ' + UI.escapeHtml(m.gymId) : '') + ' · ' + UI.escapeHtml(m.phone) + ' · ' + m.branch + '</p>' +
       '<div class="btn-row">' +
         '<button class="btn btn-ghost btn-sm" data-edit="' + m.memberId + '">Edit</button>' +
         '<button class="btn btn-ghost btn-sm" data-resetpw="' + m.memberId + '">Reset Password</button>' +
@@ -155,6 +155,7 @@ var ReceptionApp = (function () {
       '<h3>Register Member</h3>' +
       '<div class="field"><label>Full Name</label><input id="rm-name"></div>' +
       '<div class="field"><label>Phone Number</label><input id="rm-phone" type="tel"></div>' +
+      '<div class="field"><label>Gym ID (optional — their physical membership card number)</label><input id="rm-gymid" placeholder="e.g. GYM001"></div>' +
       '<div class="field"><label>Branch</label><select id="rm-branch">' +
         branches.map(function (b) { return '<option value="' + b + '">' + b + '</option>'; }).join('') +
       '</select></div>' +
@@ -166,8 +167,9 @@ var ReceptionApp = (function () {
     sheet.querySelector('#rm-submit').addEventListener('click', function () {
       var payload = {
         fullName: sheet.querySelector('#rm-name').value.trim(),
-        phone: sheet.querySelector('#rm-phone').value.trim(),
-        branch: sheet.querySelector('#rm-branch').value,
+        phone:    sheet.querySelector('#rm-phone').value.trim(),
+        gymId:    sheet.querySelector('#rm-gymid').value.trim(),
+        branch:   sheet.querySelector('#rm-branch').value,
         password: sheet.querySelector('#rm-password').value
       };
       Api.call('registerMember', payload).then(function (res) {

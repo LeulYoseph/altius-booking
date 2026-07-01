@@ -120,11 +120,14 @@ var AdminApp = (function () {
       var schedules = res.data.schedules;
       if (!schedules.length) { list.innerHTML = UI.emptyState('🗓️', 'No recurring schedules yet.'); return; }
       list.innerHTML = schedules.map(function (s) {
+        var layoutInfo = s.classType === 'Spin'
+          ? 'Spin · 11 front + 13 back = 24 bikes'
+          : 'Group · ' + s.rows + '×' + s.cols + ' = ' + (s.rows * s.cols) + ' seats';
         return '<div class="card">' +
           '<div class="card-row"><strong>' + s.branch + ' · ' + UI.friendlyTime(s.time) + '</strong>' +
             '<span class="status-pill status-' + s.status + '">' + s.status + '</span></div>' +
-          '<p>' + s.days.join(', ') + ' · Capacity ' + s.capacity + '</p>' +
-          '<p class="helper-text">Opens ' + s.openHoursBefore + 'h before · Closes ' + s.closeMinsBefore + 'm before</p>' +
+          '<p>' + s.days.join(', ') + '</p>' +
+          '<p class="helper-text">' + layoutInfo + ' · Opens ' + s.openHoursBefore + 'h before · Closes ' + s.closeMinsBefore + 'm before</p>' +
           '<div class="btn-row">' +
             '<button class="btn btn-ghost btn-sm" data-edit="' + s.scheduleId + '">Edit</button>' +
             '<button class="btn btn-danger btn-sm" data-delete="' + s.scheduleId + '">Delete</button>' +
@@ -151,45 +154,83 @@ var AdminApp = (function () {
 
   function openScheduleSheet(schedule) {
     var selectedDays = schedule ? schedule.days : [];
+    var classType    = schedule ? (schedule.classType || 'Group') : 'Group';
+    var isEdit       = !!schedule;
     var sheet = UI.openSheet(
-      '<h3>' + (schedule ? 'Edit Schedule' : 'New Recurring Schedule') + '</h3>' +
+      '<h3>' + (isEdit ? 'Edit Schedule' : 'New Recurring Schedule') + '</h3>' +
       '<div class="field"><label>Branch</label><select id="sc-branch">' +
         branches.map(function (b) { return '<option value="' + b + '" ' + (schedule && schedule.branch === b ? 'selected' : '') + '>' + b + '</option>'; }).join('') +
       '</select></div>' +
+      '<div class="field"><label>Class Type</label>' +
+        '<div class="chip-group" id="sc-type">' +
+          '<div class="chip ' + (classType === 'Group' ? 'selected' : '') + '" data-type="Group">Group Class</div>' +
+          '<div class="chip ' + (classType === 'Spin'  ? 'selected' : '') + '" data-type="Spin">Spin Class</div>' +
+        '</div>' +
+      '</div>' +
+      '<div id="sc-grid-fields">' + gridFieldsHtml(schedule) + '</div>' +
       '<div class="field"><label>Days</label><div class="chip-group" id="sc-days">' +
         WEEKDAYS.map(function (d) { return '<div class="chip ' + (selectedDays.indexOf(d) !== -1 ? 'selected' : '') + '" data-day="' + d + '">' + d.slice(0, 3) + '</div>'; }).join('') +
       '</div></div>' +
       '<div class="field"><label>Time</label><input type="time" id="sc-time" value="' + (schedule ? schedule.time : '18:00') + '"></div>' +
-      '<div class="field"><label>Capacity</label><input type="number" id="sc-capacity" value="' + (schedule ? schedule.capacity : 80) + '"></div>' +
       '<div class="field"><label>Booking Opens (hours before)</label><input type="number" id="sc-open" value="' + (schedule ? schedule.openHoursBefore : 24) + '"></div>' +
       '<div class="field"><label>Booking Closes (minutes before)</label><input type="number" id="sc-close" value="' + (schedule ? schedule.closeMinsBefore : 30) + '"></div>' +
       '<div id="sc-error"></div>' +
-      '<button class="btn btn-primary" id="sc-submit">' + (schedule ? 'Save Changes' : 'Create Schedule') + '</button>'
+      '<button class="btn btn-primary" id="sc-submit">' + (isEdit ? 'Save Changes' : 'Create Schedule') + '</button>'
     );
 
-    sheet.querySelectorAll('.chip').forEach(function (chip) {
+    // Day chips
+    sheet.querySelectorAll('#sc-days .chip').forEach(function (chip) {
       chip.addEventListener('click', function () { chip.classList.toggle('selected'); });
     });
 
+    // Class type chips — switch grid field visibility
+    sheet.querySelectorAll('#sc-type .chip').forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        sheet.querySelectorAll('#sc-type .chip').forEach(function (c) { c.classList.remove('selected'); });
+        chip.classList.add('selected');
+        var isSpin = chip.dataset.type === 'Spin';
+        sheet.querySelector('#sc-grid-fields').innerHTML = isSpin
+          ? '<p class="helper-text" style="margin-bottom:8px;">Spin class: fixed layout — 11 front + 13 back = 24 bikes, numbered 1–24.</p>'
+          : gridFieldsHtml(null);
+      });
+    });
+
+    // Handle initial state if Spin is pre-selected
+    if (classType === 'Spin') {
+      sheet.querySelector('#sc-grid-fields').innerHTML = '<p class="helper-text" style="margin-bottom:8px;">Spin class: fixed layout — 10 × 2 = 24 bikes, numbered 1–24.</p>';
+    }
+
     sheet.querySelector('#sc-submit').addEventListener('click', function () {
-      var days = Array.prototype.slice.call(sheet.querySelectorAll('.chip.selected')).map(function (c) { return c.dataset.day; });
+      var selectedType = (sheet.querySelector('#sc-type .chip.selected') || {}).dataset || {};
+      var cType = selectedType.type || 'Group';
+      var days  = Array.prototype.slice.call(sheet.querySelectorAll('#sc-days .chip.selected')).map(function (c) { return c.dataset.day; });
       var payload = {
-        branch: sheet.querySelector('#sc-branch').value,
-        days: days,
-        time: sheet.querySelector('#sc-time').value,
-        capacity: Number(sheet.querySelector('#sc-capacity').value),
+        branch:          sheet.querySelector('#sc-branch').value,
+        classType:       cType,
+        days:            days,
+        time:            sheet.querySelector('#sc-time').value,
         openHoursBefore: Number(sheet.querySelector('#sc-open').value),
         closeMinsBefore: Number(sheet.querySelector('#sc-close').value)
       };
-      if (schedule) payload.scheduleId = schedule.scheduleId;
-      var action = schedule ? 'editSchedule' : 'createSchedule';
+      if (cType === 'Group') {
+        payload.rows = Number(sheet.querySelector('#sc-rows') ? sheet.querySelector('#sc-rows').value : 8);
+        payload.cols = Number(sheet.querySelector('#sc-cols') ? sheet.querySelector('#sc-cols').value : 8);
+      }
+      if (isEdit) payload.scheduleId = schedule.scheduleId;
+      var action = isEdit ? 'editSchedule' : 'createSchedule';
       Api.call(action, payload).then(function (res) {
         if (!res.success) { sheet.querySelector('#sc-error').innerHTML = '<p class="error-text">' + UI.escapeHtml(res.error) + '</p>'; return; }
         sheet.remove();
-        UI.toast(schedule ? 'Schedule updated.' : 'Schedule created.');
+        UI.toast(isEdit ? 'Schedule updated.' : 'Schedule created.');
         loadSchedules();
       });
     });
+  }
+
+  function gridFieldsHtml(schedule) {
+    return '<div class="field"><label>Rows</label><input type="number" id="sc-rows" value="' + (schedule ? schedule.rows || 8 : 8) + '" min="1" max="26"></div>' +
+           '<div class="field"><label>Columns</label><input type="number" id="sc-cols" value="' + (schedule ? schedule.cols || 8 : 8) + '" min="1" max="20"></div>' +
+           '<p class="helper-text">Total seats = rows × columns (e.g. 6 × 10 = 60 seats).</p>';
   }
 
   // --- Members (Admin: full CRUD incl. delete) --------------------------
@@ -228,7 +269,7 @@ var AdminApp = (function () {
     var nextStatus = m.status === 'Active' ? 'Inactive' : 'Active';
     return '<div class="card">' +
       '<div class="card-row"><strong>' + UI.escapeHtml(m.fullName) + '</strong><span class="status-pill status-' + m.status + '">' + m.status + '</span></div>' +
-      '<p>' + m.memberId + ' · ' + UI.escapeHtml(m.phone) + ' · ' + m.branch + '</p>' +
+      '<p>' + m.memberId + (m.gymId ? ' · Gym ID: ' + UI.escapeHtml(m.gymId) : '') + ' · ' + UI.escapeHtml(m.phone) + ' · ' + m.branch + '</p>' +
       '<div class="btn-row">' +
         '<button class="btn btn-ghost btn-sm" data-edit="' + m.memberId + '">Edit</button>' +
         '<button class="btn btn-ghost btn-sm" data-resetpw="' + m.memberId + '">Reset Password</button>' +
@@ -280,6 +321,7 @@ var AdminApp = (function () {
       '<h3>Register Member</h3>' +
       '<div class="field"><label>Full Name</label><input id="rm-name"></div>' +
       '<div class="field"><label>Phone Number</label><input id="rm-phone" type="tel"></div>' +
+      '<div class="field"><label>Gym ID (optional — their physical membership card number)</label><input id="rm-gymid" placeholder="e.g. GYM001"></div>' +
       '<div class="field"><label>Branch</label><select id="rm-branch">' +
         branches.map(function (b) { return '<option value="' + b + '">' + b + '</option>'; }).join('') +
       '</select></div>' +
@@ -291,8 +333,9 @@ var AdminApp = (function () {
     sheet.querySelector('#rm-submit').addEventListener('click', function () {
       var payload = {
         fullName: sheet.querySelector('#rm-name').value.trim(),
-        phone: sheet.querySelector('#rm-phone').value.trim(),
-        branch: sheet.querySelector('#rm-branch').value,
+        phone:    sheet.querySelector('#rm-phone').value.trim(),
+        gymId:    sheet.querySelector('#rm-gymid').value.trim(),
+        branch:   sheet.querySelector('#rm-branch').value,
         password: sheet.querySelector('#rm-password').value
       };
       Api.call('registerMember', payload).then(function (res) {
@@ -311,6 +354,7 @@ var AdminApp = (function () {
       '<h3>Edit Member</h3>' +
       '<div class="field"><label>Full Name</label><input id="em-name" value="' + UI.escapeHtml(member.fullName) + '"></div>' +
       '<div class="field"><label>Phone Number</label><input id="em-phone" value="' + UI.escapeHtml(member.phone) + '"></div>' +
+      '<div class="field"><label>Gym ID</label><input id="em-gymid" value="' + UI.escapeHtml(member.gymId || '') + '" placeholder="e.g. GYM001"></div>' +
       '<div class="field"><label>Branch</label><select id="em-branch">' +
         branches.map(function (b) { return '<option value="' + b + '" ' + (b === member.branch ? 'selected' : '') + '>' + b + '</option>'; }).join('') +
       '</select></div>' +
@@ -321,8 +365,9 @@ var AdminApp = (function () {
       var payload = {
         memberId: memberId,
         fullName: sheet.querySelector('#em-name').value.trim(),
-        phone: sheet.querySelector('#em-phone').value.trim(),
-        branch: sheet.querySelector('#em-branch').value
+        phone:    sheet.querySelector('#em-phone').value.trim(),
+        gymId:    sheet.querySelector('#em-gymid').value.trim(),
+        branch:   sheet.querySelector('#em-branch').value
       };
       Api.call('editMember', payload).then(function (res) {
         if (!res.success) { sheet.querySelector('#em-error').innerHTML = '<p class="error-text">' + UI.escapeHtml(res.error) + '</p>'; return; }

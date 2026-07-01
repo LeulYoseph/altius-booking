@@ -40,8 +40,8 @@ var Auth = (function () {
       pane.innerHTML =
         '<div class="card">' +
           '<div class="field">' +
-            '<label>Full name or phone number</label>' +
-            '<input id="member-identifier" type="text" placeholder="e.g. Helen Bekele or 0911000002" autocomplete="username">' +
+            '<label>Gym ID, phone number, or full name</label>' +
+            '<input id="member-identifier" type="text" placeholder="e.g. GYM001, 0911000002, or Helen Bekele" autocomplete="username">' +
           '</div>' +
           '<div class="field">' +
             '<label>Password</label>' +
